@@ -16,6 +16,7 @@ export const ParticipantName = ({
     // biome-ignore lint/a11y/noStaticElementInteractions: fix later
     <div
       ref={ref}
+      data-expanded={isTruncated || undefined}
       onMouseEnter={() => {
         if (ref.current) {
           setIsTruncated(ref.current.scrollWidth > ref.current.clientWidth);
@@ -27,7 +28,7 @@ export const ParticipantName = ({
         }
       }}
       className={cn("truncate text-sm", {
-        "hover:-translate-x-2 hover:cursor-pointer hover:overflow-visible hover:whitespace-nowrap hover:rounded-md hover:bg-background hover:p-2":
+        "hover:relative hover:z-20 hover:w-max hover:shrink-0 hover:-translate-x-2 hover:cursor-pointer hover:overflow-visible hover:whitespace-nowrap hover:rounded-md hover:bg-background hover:p-2":
           isTruncated,
       })}
     >

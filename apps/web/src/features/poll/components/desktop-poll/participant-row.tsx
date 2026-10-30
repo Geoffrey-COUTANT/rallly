@@ -69,7 +69,7 @@ export const ParticipantRowView: React.FunctionComponent<{
         style={{ minWidth: 235, maxWidth: 235 }}
         className="sticky left-0 z-10 h-12 border-border-muted border-b bg-card px-3 group-[.last-row]:border-b-0"
       >
-        <div className="flex max-w-full items-center justify-between gap-x-1">
+        <div className="group/participant flex max-w-full items-center justify-between gap-x-1">
           <Participant>
             <OptimizedAvatarImage
               size="sm"
@@ -78,7 +78,7 @@ export const ParticipantRowView: React.FunctionComponent<{
             />
             <ParticipantName>{name}</ParticipantName>
           </Participant>
-          <div className="flex items-center gap-x-2">
+          <div className="flex items-center gap-x-2 group-has-data-[expanded=true]/participant:invisible">
             {isYou ? (
               <Badge variant="secondary" className="shrink-0">
                 <Trans i18nKey="you" defaults="You" />
