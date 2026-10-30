@@ -9,7 +9,7 @@ import {
   findPendingPollInvite,
 } from "@/features/poll/invite/mutations";
 import { revalidatePollPages } from "@/features/poll/mutations";
-import { generateAccessToken } from "@/features/poll/utils";
+import { generateAccessToken, isPollOptionPast } from "@/features/poll/utils";
 import type { SpaceTier } from "@/features/space/schema";
 import { scheduleWebhookDispatch } from "@/features/webhook/mutations";
 
@@ -18,7 +18,8 @@ type WriteRefusal =
   | "closed"
   | "full"
   | "tentativeVotesNotAllowed"
-  | "optionFull";
+  | "optionFull"
+  | "pastOption";
 
 class WriteRefusedError extends Error {
   constructor(public readonly reason: WriteRefusal) {
@@ -47,9 +48,10 @@ async function lockOpenPoll(
       deleted: boolean;
       allow_tentative_votes: boolean;
       max_participants_per_option: number | null;
+      time_zone: string | null;
     }[]
   >`
-    SELECT status, deleted, allow_tentative_votes, max_participants_per_option
+    SELECT status, deleted, allow_tentative_votes, max_participants_per_option, time_zone
     FROM polls WHERE id = ${pollId} FOR UPDATE
   `;
 
@@ -64,9 +66,45 @@ async function lockOpenPoll(
     throw new WriteRefusedError("closed");
   }
 
+  // Sample the server clock after acquiring the lock: an option can expire
+  // while this transaction is waiting for another response to commit.
+  const now = new Date();
+  const options = await tx.option.findMany({
+    where: { pollId },
+    select: { id: true, startTime: true, duration: true },
+  });
+  const optionIds = new Set(options.map((option) => option.id));
+  const pastOptionIds = options
+    .filter((option) => isPollOptionPast(option, poll.time_zone, now))
+    .map((option) => option.id);
+  const past = new Set(pastOptionIds);
+  const saved =
+    participantId && past.size > 0
+      ? await tx.vote.findMany({
+          where: { participantId, pollId, optionId: { in: pastOptionIds } },
+          select: { optionId: true, type: true },
+        })
+      : [];
+  const savedTypes = new Map(saved.map((vote) => [vote.optionId, vote.type]));
+  for (const vote of votes) {
+    if (!past.has(vote.optionId)) continue;
+    const previous = savedTypes.get(vote.optionId);
+    // Normalized forms send No for unanswered options. Ignore these on old
+    // dates, but reject a new positive vote or a change to a historical vote.
+    if (
+      previous !== vote.type &&
+      !(previous === undefined && vote.type === "no")
+    ) {
+      throw new WriteRefusedError("pastOption");
+    }
+  }
+  const writableVotes = votes.filter(
+    (vote) => optionIds.has(vote.optionId) && !past.has(vote.optionId),
+  );
+
   if (
     !poll.allow_tentative_votes &&
-    votes.some((vote) => vote.type === "ifNeedBe")
+    writableVotes.some((vote) => vote.type === "ifNeedBe")
   ) {
     throw new WriteRefusedError("tentativeVotesNotAllowed");
   }
@@ -75,7 +113,7 @@ async function lockOpenPoll(
     // The poll lock serializes response writes and quota changes. Exclude
     // the response being edited so keeping one's own place remains valid.
     const requested = new Map<string, number>();
-    for (const vote of votes) {
+    for (const vote of writableVotes) {
       if (vote.type === "yes") {
         requested.set(vote.optionId, (requested.get(vote.optionId) ?? 0) + 1);
       }
@@ -102,6 +140,11 @@ async function lockOpenPoll(
       }
     }
   }
+  return {
+    votes: writableVotes,
+    pastOptionIds,
+    hasFutureOptions: options.some((option) => !past.has(option.id)),
+  };
 }
 
 /**
@@ -122,17 +165,6 @@ async function assertParticipantInPoll(
   if (!participant) {
     throw new WriteRefusedError("notFound");
   }
-}
-
-async function listValidOptionIds(
-  tx: Prisma.TransactionClient,
-  pollId: string,
-) {
-  const options = await tx.option.findMany({
-    where: { pollId },
-    select: { id: true },
-  });
-  return new Set(options.map((option) => option.id));
 }
 
 function refusal(error: unknown) {
@@ -207,12 +239,12 @@ export async function addParticipant({
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const validOptionIds = await listValidOptionIds(tx, pollId);
-      const validVotes = votes.filter(({ optionId }) =>
-        validOptionIds.has(optionId),
+      const { votes: validVotes, hasFutureOptions } = await lockOpenPoll(
+        tx,
+        pollId,
+        votes,
       );
-
-      await lockOpenPoll(tx, pollId, validVotes);
+      if (!hasFutureOptions) throw new WriteRefusedError("pastOption");
 
       // Counted under the lock so two responses cannot both pass at the cap.
       const participantCount = await tx.participant.count({
@@ -333,15 +365,19 @@ export async function updateParticipantVotes({
 }): Promise<EditParticipantResult> {
   try {
     await prisma.$transaction(async (tx) => {
-      await lockOpenPoll(tx, pollId, votes, participantId);
+      const { votes: validVotes, pastOptionIds } = await lockOpenPoll(
+        tx,
+        pollId,
+        votes,
+        participantId,
+      );
       await assertParticipantInPoll(tx, participantId, pollId);
 
-      await tx.vote.deleteMany({ where: { participantId } });
-
-      const validOptionIds = await listValidOptionIds(tx, pollId);
-      const validVotes = votes.filter(({ optionId }) =>
-        validOptionIds.has(optionId),
-      );
+      // Missing historical votes are preserved too: a filtered view or a
+      // partial request must not silently erase them.
+      await tx.vote.deleteMany({
+        where: { participantId, optionId: { notIn: pastOptionIds } },
+      });
 
       await tx.vote.createMany({
         data: validVotes.map(({ optionId, type }) => ({

@@ -6,6 +6,7 @@ import React from "react";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
 import * as z from "zod";
 import {
+  PollVotingAvailabilityProvider,
   useParticipants,
   usePermissions,
   usePoll,
@@ -114,77 +115,85 @@ export const VotingForm = ({ children }: React.PropsWithChildren) => {
   });
 
   return (
-    <FormProvider {...form}>
-      <form
-        id="voting-form"
-        onSubmit={form.handleSubmit(async (data) => {
-          if (data.participantId) {
-            const result = await updateParticipantVotes.execute({
-              participantId: data.participantId,
-              votes: normalizeVotes(optionIds, data.votes),
-              token,
-            });
+    <PollVotingAvailabilityProvider options={options} timeZone={poll.timeZone}>
+      <FormProvider {...form}>
+        <form
+          id="voting-form"
+          onSubmit={form.handleSubmit(async (data) => {
+            if (data.participantId) {
+              const result = await updateParticipantVotes.execute({
+                participantId: data.participantId,
+                votes: normalizeVotes(optionIds, data.votes),
+                token,
+              });
 
-            if (!result.ok) {
-              // Stay in edit mode so the selection is not lost.
-              toast.error(
-                result.reason === "optionFull"
-                  ? t("pollOptionCapacityFull", {
-                      defaultValue:
-                        "A selected time slot is full. Change your response and try again.",
-                    })
-                  : result.reason === "closed"
-                    ? t("pollClosedDescription", {
-                        defaultValue: "No more responses are being accepted.",
+              if (!result.ok) {
+                // Stay in edit mode so the selection is not lost.
+                toast.error(
+                  result.reason === "pastOption"
+                    ? t("pastPollOptionError", {
+                        defaultValue:
+                          "A selected option is in the past. Past votes cannot be changed. Refresh the poll and try again.",
                       })
-                    : t("actionErrorInternalServerError", {
-                        defaultValue: "An internal server error occurred",
-                      }),
-              );
-              return;
-            }
+                    : result.reason === "optionFull"
+                      ? t("pollOptionCapacityFull", {
+                          defaultValue:
+                            "A selected time slot is full. Change your response and try again.",
+                        })
+                      : result.reason === "closed"
+                        ? t("pollClosedDescription", {
+                            defaultValue:
+                              "No more responses are being accepted.",
+                          })
+                        : t("actionErrorInternalServerError", {
+                            defaultValue: "An internal server error occurred",
+                          }),
+                );
+                return;
+              }
 
-            form.reset({
-              mode: "view",
-              participantId: data.participantId,
-              votes: options.map((option) => ({
-                optionId: option.id,
-              })),
-            });
-          } else {
-            // new participant
-            // Plain properties, not groups, to match poll_response_submit:
-            // guest events are personless and PostHog drops their groups.
-            posthog?.capture("poll_response:form_open", {
-              poll_id: poll.id,
-              require_email: poll.requireParticipantEmail,
-              tier: poll.space?.tier,
-            });
-            setIsNewParticipantModalOpen(true);
-          }
-        })}
-      />
-      <Dialog
-        open={isNewParticipantModalOpen}
-        onOpenChange={setIsNewParticipantModalOpen}
-      >
-        <DialogContent size="sm">
-          <NewParticipantForm
-            votes={normalizeVotes(optionIds, form.watch("votes"))}
-            onSubmit={(newParticipant) => {
               form.reset({
                 mode: "view",
-                participantId: newParticipant.id,
+                participantId: data.participantId,
                 votes: options.map((option) => ({
                   optionId: option.id,
                 })),
               });
-            }}
-            onCancel={() => setIsNewParticipantModalOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-      {children}
-    </FormProvider>
+            } else {
+              // new participant
+              // Plain properties, not groups, to match poll_response_submit:
+              // guest events are personless and PostHog drops their groups.
+              posthog?.capture("poll_response:form_open", {
+                poll_id: poll.id,
+                require_email: poll.requireParticipantEmail,
+                tier: poll.space?.tier,
+              });
+              setIsNewParticipantModalOpen(true);
+            }
+          })}
+        />
+        <Dialog
+          open={isNewParticipantModalOpen}
+          onOpenChange={setIsNewParticipantModalOpen}
+        >
+          <DialogContent size="sm">
+            <NewParticipantForm
+              votes={normalizeVotes(optionIds, form.watch("votes"))}
+              onSubmit={(newParticipant) => {
+                form.reset({
+                  mode: "view",
+                  participantId: newParticipant.id,
+                  votes: options.map((option) => ({
+                    optionId: option.id,
+                  })),
+                });
+              }}
+              onCancel={() => setIsNewParticipantModalOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+        {children}
+      </FormProvider>
+    </PollVotingAvailabilityProvider>
   );
 };

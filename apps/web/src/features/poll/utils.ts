@@ -1,6 +1,11 @@
 import { customAlphabet } from "nanoid";
 import type { VoteType } from "@/features/poll/constants";
 import type { PollComment, PollParticipant } from "@/features/poll/types";
+import {
+  getCalendarDate,
+  normalizeTimeZone,
+  toISODate,
+} from "@/lib/datetime/utils";
 
 // Alphanumeric only: url safe with no linkifier edge cases. 32 chars is the
 // floor documented on Participant.token and PollInvite.token.
@@ -320,4 +325,20 @@ export function summarizeNotifySelection({
   // The dialog starts with everyone who has an email selected.
   summary.notify_selection_changed = selected !== eligible;
   return summary;
+}
+
+/** A poll has one authoritative voting boundary, independent of the viewer's zone.
+ * All-day options are floating dates; absent/invalid poll zones use UTC.
+ * Timed options without a zone are interpreted as UTC wall-clock times.
+ */
+export function isPollOptionPast(
+  option: { startTime: Date; duration: number },
+  timeZone: string | null,
+  now: Date,
+) {
+  if (option.duration > 0) return option.startTime.getTime() <= now.getTime();
+  return (
+    toISODate(option.startTime) <
+    getCalendarDate(now, normalizeTimeZone(timeZone) ?? "UTC")
+  );
 }

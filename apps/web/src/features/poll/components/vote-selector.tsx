@@ -9,6 +9,7 @@ import VoteIcon from "./vote-icon";
 
 export interface VoteSelectorProps {
   value?: VoteType;
+  disabledReason?: string;
   /**
    * Accessible description of the option being voted on (e.g. "Tue 30 Jun
    * 2026, 1:00 PM – 2:00 PM") so screen readers can tie the vote to its
@@ -44,6 +45,7 @@ export const VoteSelector = React.forwardRef<
 >(function VoteSelector(
   {
     value,
+    disabledReason,
     optionLabel,
     onChange,
     onFocus,
@@ -73,6 +75,8 @@ export const VoteSelector = React.forwardRef<
     <button
       data-testid="vote-selector"
       type="button"
+      disabled={!!disabledReason}
+      title={disabledReason}
       aria-label={optionLabel ? `${optionLabel}, ${voteLabel}` : voteLabel}
       onFocus={onFocus}
       onBlur={onBlur}

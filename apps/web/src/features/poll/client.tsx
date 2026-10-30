@@ -6,8 +6,9 @@ import type {
   PollDetails,
   PollParticipant,
 } from "@/features/poll/types";
+import { isPollOptionPast } from "@/features/poll/utils";
 import { useUser } from "@/features/user/client";
-import { useTranslation } from "@/i18n/client";
+import { Trans, useTranslation } from "@/i18n/client";
 
 type PollContextValue = {
   poll: PollDetails;
@@ -114,3 +115,62 @@ export const usePermissions = () => {
     },
   };
 };
+
+const PastPollOptionsContext = React.createContext<ReadonlySet<string>>(
+  new Set(),
+);
+
+/** Shared by list, calendar, week and host editors. Wait for hydration before
+ * reading the clock and refresh on focus as suspended tabs resume.
+ */
+export function PollVotingAvailabilityProvider({
+  options,
+  timeZone,
+  children,
+}: {
+  options: { id: string; startTime: Date; duration: number }[];
+  timeZone: string | null;
+  children: React.ReactNode;
+}) {
+  const [now, setNow] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    const tick = () => setNow(new Date());
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", tick);
+    };
+  }, []);
+  const past = React.useMemo(
+    () =>
+      new Set(
+        options
+          .filter((option) => !now || isPollOptionPast(option, timeZone, now))
+          .map((option) => option.id),
+      ),
+    [options, timeZone, now],
+  );
+  return (
+    <PastPollOptionsContext.Provider value={past}>
+      {now && past.size > 0 ? (
+        <p className="px-4 py-2 text-muted-foreground text-sm" role="note">
+          <Trans
+            i18nKey="pastPollOptionsNotice"
+            defaults="Past options are read-only. Previously saved votes are kept."
+          />
+        </p>
+      ) : null}
+      {children}
+    </PastPollOptionsContext.Provider>
+  );
+}
+
+export function usePastPollOptions() {
+  return React.useContext(PastPollOptionsContext);
+}
+
+export function useIsPastPollOption(optionId: string) {
+  return usePastPollOptions().has(optionId);
+}

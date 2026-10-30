@@ -3,6 +3,10 @@ import { cn } from "@rallly/ui";
 import type { MonthGridDayProps } from "@rallly/ui/month-grid";
 import { MonthGrid } from "@rallly/ui/month-grid";
 import * as React from "react";
+import {
+  useIsPastPollOption,
+  usePastPollOptions,
+} from "@/features/poll/client";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import type { VoteType } from "@/features/poll/constants";
 import {
@@ -110,7 +114,10 @@ function OptionDayContent({
 function DayCell({ day, modifiers, className, ...props }: MonthGridDayProps) {
   const ctx = React.useContext(DayContextValue);
   const result = ctx?.byDate.get(toISODate(day.date));
-  const interactive = result !== undefined && (ctx?.canVote ?? false);
+  const isPast = useIsPastPollOption(result?.optionId ?? "");
+  const { t } = useTranslation();
+  const interactive =
+    result !== undefined && !isPast && (ctx?.canVote ?? false);
 
   return (
     <button
@@ -125,6 +132,14 @@ function DayCell({ day, modifiers, className, ...props }: MonthGridDayProps) {
         className,
       )}
       {...props}
+      disabled={props.disabled || isPast}
+      title={
+        isPast
+          ? t("pastPollOptionReadOnly", {
+              defaultValue: "This option is in the past and cannot be changed.",
+            })
+          : props.title
+      }
     >
       {result ? (
         <OptionDayContent result={result} dayNumber={props.children} />
@@ -193,6 +208,7 @@ export function VoteViewCalendar({
 
   // DayPicker owns the day buttons, so the click is handled here rather
   // than in the cell: it maps the date back to its option and advances it.
+  const pastOptions = usePastPollOptions();
   const setVote = useSetVote();
   const form = useVoteForm();
   const handleDayClick = React.useCallback(
@@ -200,14 +216,19 @@ export function VoteViewCalendar({
       const result = byDate.get(toISODate(date));
       // Read the mode at click time: DayPicker holds on to this handler, so
       // a captured value would go stale the moment the response is saved.
-      if (!result || !canVote || form.getValues("mode") === "view") {
+      if (
+        !result ||
+        pastOptions.has(result.optionId) ||
+        !canVote ||
+        form.getValues("mode") === "view"
+      ) {
         return;
       }
       setVote(result.optionId, (current) =>
         nextVoteType(current, poll.allowTentativeVotes),
       );
     },
-    [byDate, canVote, form, setVote, poll.allowTentativeVotes],
+    [byDate, canVote, form, setVote, poll.allowTentativeVotes, pastOptions],
   );
 
   const ctx = React.useMemo(

@@ -6,6 +6,7 @@ import * as React from "react";
 import { Controller } from "react-hook-form";
 
 import { OptimizedAvatarImage } from "@/components/optimized-avatar-image";
+import { usePastPollOptions } from "@/features/poll/client";
 import {
   Participant,
   ParticipantName,
@@ -37,6 +38,7 @@ const ParticipantRowForm = ({
   const { optionIds, poll } = usePoll();
   const { options } = useOptions();
   const form = useVotingForm();
+  const pastOptions = usePastPollOptions();
 
   React.useEffect(() => {
     function cancel(e: KeyboardEvent) {
@@ -133,6 +135,14 @@ const ParticipantRowForm = ({
                       option ? getOptionDateTimeLabel(option) : undefined
                     }
                     value={field.value?.type}
+                    disabledReason={
+                      pastOptions.has(optionId)
+                        ? t("pastPollOptionReadOnly", {
+                            defaultValue:
+                              "This option is in the past and cannot be changed.",
+                          })
+                        : undefined
+                    }
                     allowTentativeVotes={poll.allowTentativeVotes}
                     onChange={(vote) => {
                       field.onChange({ optionId, type: vote });
