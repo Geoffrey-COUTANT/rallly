@@ -123,6 +123,7 @@ export function OTPForm({
               <FormItem>
                 <FormControl>
                   <InputOTP
+                    containerClassName="justify-center"
                     disabled={
                       form.formState.isSubmitting ||
                       form.formState.isSubmitSuccessful
