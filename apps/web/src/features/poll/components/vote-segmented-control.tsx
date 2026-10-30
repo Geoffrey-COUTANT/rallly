@@ -16,10 +16,12 @@ export const VoteSegmentedControl = ({
   value,
   onChange,
   optionLabel,
+  disabledReason,
   allowTentativeVotes = true,
   className,
 }: {
   value?: VoteType;
+  disabledReason?: string;
   onChange: (value: VoteType) => void;
   className?: string;
   /** When false only yes and no are offered. */
@@ -44,11 +46,13 @@ export const VoteSegmentedControl = ({
     <SegmentedControl
       data-testid="vote-selector"
       aria-label={optionLabel}
+      title={disabledReason}
+      disabled={!!disabledReason}
       // Touch-sized below sm; from there it matches a default button.
-      className={cn("h-11 sm:h-9", className)}
+      className={cn("h-11 sm:h-9", disabledReason && "opacity-50", className)}
       value={value ?? null}
       onValueChange={(newValue) => {
-        if (newValue) {
+        if (newValue && !disabledReason) {
           onChange(newValue as VoteType);
         }
       }}
@@ -57,8 +61,9 @@ export const VoteSegmentedControl = ({
         <SegmentedControlItem
           key={type}
           value={type}
+          disabled={!!disabledReason}
           aria-label={voteLabels[type]}
-          className="w-11 sm:w-9 data-unchecked:[&_svg]:text-gray-400 dark:data-unchecked:[&_svg]:text-gray-600"
+          className="w-11 data-disabled:cursor-not-allowed sm:w-9 data-unchecked:[&_svg]:text-gray-400 dark:data-unchecked:[&_svg]:text-gray-600"
         >
           <VoteIcon type={type} />
         </SegmentedControlItem>

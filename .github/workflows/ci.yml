@@ -268,6 +268,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://quota:quota-test-only@localhost:5432/quota
       POLL_CAPACITY_DATABASE_TESTS: '1'
+      POLL_PAST_DATABASE_TESTS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
@@ -276,5 +277,5 @@ jobs:
         run: pnpm db:generate
       - name: Apply migrations
         run: pnpm db:deploy
-      - name: Verify quotas and concurrent responses
-        run: pnpm --filter @rallly/web exec vitest run tests/database/poll-capacity.test.ts
+      - name: Verify quotas and past-option boundaries
+        run: pnpm --filter @rallly/web exec vitest run tests/database/poll-capacity.test.ts tests/database/past-option-votes.test.ts

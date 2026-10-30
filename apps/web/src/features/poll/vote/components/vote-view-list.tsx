@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-table";
 import * as React from "react";
 import { DataList } from "@/components/data-list";
+import { useIsPastPollOption } from "@/features/poll/client";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { VoteSegmentedControl } from "@/features/poll/components/vote-segmented-control";
 import type { VoteType } from "@/features/poll/constants";
@@ -17,7 +18,7 @@ import {
 import { VoteScore } from "@/features/poll/vote/components/vote-score";
 import type { VoteResult, VoteViewProps } from "@/features/poll/vote/types";
 import { EventTimeRange } from "@/features/scheduled-event/components/event-date-time";
-import { Trans } from "@/i18n/client";
+import { Trans, useTranslation } from "@/i18n/client";
 import { CalendarDate } from "@/lib/datetime/calendar-date";
 import { useDateTime } from "@/lib/datetime/client";
 import {
@@ -66,6 +67,8 @@ function VoteCell({
   canVote: boolean;
 }) {
   const { value, setVote, isEditing } = useVote(optionId);
+  const isPast = useIsPastPollOption(optionId);
+  const { t } = useTranslation();
 
   if (!canVote || !isEditing) {
     return savedVote !== undefined ? <VoteLabel type={savedVote} /> : null;
@@ -73,6 +76,13 @@ function VoteCell({
   return (
     <VoteSegmentedControl
       value={value}
+      disabledReason={
+        isPast
+          ? t("pastPollOptionReadOnly", {
+              defaultValue: "This option is in the past and cannot be changed.",
+            })
+          : undefined
+      }
       onChange={setVote}
       optionLabel={optionLabel}
       allowTentativeVotes={allowTentativeVotes}

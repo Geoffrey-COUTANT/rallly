@@ -156,6 +156,11 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
 
   const getSubmitErrorMessage = (reason: string) => {
     switch (reason) {
+      case "pastOption":
+        return t("pastPollOptionError", {
+          defaultValue:
+            "A selected option is in the past. Past votes cannot be changed. Refresh the poll and try again.",
+        });
       case "optionFull":
         return t("pollOptionCapacityFull", {
           defaultValue:

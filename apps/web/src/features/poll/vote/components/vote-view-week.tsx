@@ -3,6 +3,7 @@ import { cn } from "@rallly/ui";
 import { Button } from "@rallly/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import * as React from "react";
+import { useIsPastPollOption } from "@/features/poll/client";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { VoteSegmentedControl } from "@/features/poll/components/vote-segmented-control";
 import type { VoteType } from "@/features/poll/constants";
@@ -99,6 +100,8 @@ function TimeOption({
 }) {
   const { formatDateTime, formatDateTimeRange } = useDateTime();
   const { value, setVote, isEditing } = useVote(result.optionId);
+  const isPast = useIsPastPollOption(result.optionId);
+  const { t } = useTranslation();
   const shown = isEditing ? value : savedVote;
   const end = new Date(result.startTime.getTime() + result.duration * 60_000);
 
@@ -130,6 +133,14 @@ function TimeOption({
         {canVote && isEditing ? (
           <VoteSegmentedControl
             value={value}
+            disabledReason={
+              isPast
+                ? t("pastPollOptionReadOnly", {
+                    defaultValue:
+                      "This option is in the past and cannot be changed.",
+                  })
+                : undefined
+            }
             onChange={setVote}
             optionLabel={label}
             allowTentativeVotes={allowTentativeVotes}
