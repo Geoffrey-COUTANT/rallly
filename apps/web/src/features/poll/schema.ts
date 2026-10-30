@@ -35,6 +35,18 @@ export {
   pollClosedReasonSchema,
 } from "@/features/activity/schema";
 
+export const pollOptionCapacitySchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(10000)
+  .nullable();
+
+export const setPollOptionCapacitySchema = z.object({
+  pollId: z.string().min(1),
+  maxParticipantsPerOption: pollOptionCapacitySchema,
+});
+
 export const setPollMutedSchema = z.object({
   pollId: z.string(),
   muted: z.boolean(),

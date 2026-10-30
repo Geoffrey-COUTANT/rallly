@@ -34,6 +34,7 @@ export type VotePageView = {
     status: PollStatus;
     closedReason: PollClosedReason | null;
     allowTentativeVotes: boolean;
+    maxParticipantsPerOption: number | null;
     timeZone: string | null;
     userId: string | null;
     spaceId: string | null;

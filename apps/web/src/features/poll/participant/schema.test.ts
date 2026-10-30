@@ -50,3 +50,18 @@ describe("addParticipantSchema email", () => {
     ).toBe(false);
   });
 });
+
+describe("participant votes", () => {
+  it("rejects duplicate options instead of reserving multiple places for one response", () => {
+    expect(
+      addParticipantSchema.safeParse({
+        pollId: "p",
+        name: "A",
+        votes: [
+          { optionId: "o", type: "yes" },
+          { optionId: "o", type: "yes" },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+});

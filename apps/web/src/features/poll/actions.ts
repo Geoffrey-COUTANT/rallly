@@ -2,8 +2,13 @@
 
 import { refresh } from "next/cache";
 
-import { setPollMuted } from "@/features/poll/mutations";
-import { setPollMutedSchema } from "@/features/poll/schema";
+import { hasPollAdminAccess } from "@/features/poll/data";
+import { setPollMuted, setPollOptionCapacity } from "@/features/poll/mutations";
+import {
+  setPollMutedSchema,
+  setPollOptionCapacitySchema,
+} from "@/features/poll/schema";
+import { AppError } from "@/lib/errors/app-error";
 import { identifyGroup, track } from "@/lib/posthog";
 import { authActionClient } from "@/lib/safe-action/server";
 
@@ -36,5 +41,20 @@ export const setPollMutedAction = authActionClient
 
     refresh();
 
+    return result;
+  });
+
+export const setPollOptionCapacityAction = authActionClient
+  .metadata({ actionName: "set_poll_option_capacity" })
+  .inputSchema(setPollOptionCapacitySchema)
+  .action(async ({ ctx, parsedInput }) => {
+    if (!(await hasPollAdminAccess(parsedInput.pollId, ctx.user.id))) {
+      throw new AppError({
+        code: "FORBIDDEN",
+        message: "You cannot manage this poll",
+      });
+    }
+    const result = await setPollOptionCapacity(parsedInput);
+    refresh();
     return result;
   });

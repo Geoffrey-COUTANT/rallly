@@ -502,3 +502,39 @@ export function revalidatePollPages() {
   revalidatePath("/[locale]/invite/[urlId]", "layout");
   revalidatePath("/[locale]/(optional-space)/poll/[urlId]", "layout");
 }
+
+export async function setPollOptionCapacity({
+  pollId,
+  maxParticipantsPerOption,
+}: {
+  pollId: string;
+  maxParticipantsPerOption: number | null;
+}) {
+  const result = await prisma.$transaction(async (tx) => {
+    const [poll] = await tx.$queryRaw<{ deleted: boolean; status: string }[]>`
+      SELECT deleted, status FROM polls WHERE id = ${pollId} FOR UPDATE
+    `;
+    if (!poll || poll.deleted)
+      return { ok: false as const, reason: "notFound" as const };
+    if (poll.status !== "open")
+      return { ok: false as const, reason: "closed" as const };
+
+    if (maxParticipantsPerOption !== null) {
+      const counts = await tx.vote.groupBy({
+        by: ["optionId"],
+        where: { pollId, type: "yes" },
+        _count: { _all: true },
+      });
+      if (counts.some((row) => row._count._all > maxParticipantsPerOption)) {
+        return { ok: false as const, reason: "belowAttendance" as const };
+      }
+    }
+    await tx.poll.update({
+      where: { id: pollId },
+      data: { maxParticipantsPerOption },
+    });
+    return { ok: true as const };
+  });
+  if (result.ok) revalidatePollPages();
+  return result;
+}
