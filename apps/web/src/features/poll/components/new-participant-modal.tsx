@@ -156,6 +156,11 @@ export const NewParticipantForm = (props: NewParticipantModalProps) => {
 
   const getSubmitErrorMessage = (reason: string) => {
     switch (reason) {
+      case "optionFull":
+        return t("pollOptionCapacityFull", {
+          defaultValue:
+            "A selected time slot is full. Change your response and try again.",
+        });
       case "full":
       case "closed":
       case "notFound":

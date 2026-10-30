@@ -247,3 +247,34 @@ jobs:
       - name: Fail unless every shard passed
         if: ${{ needs.integration-shard.result != 'success' }}
         run: exit 1
+
+  poll-capacity-database-tests:
+    name: Poll capacity database tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: quota
+          POSTGRES_PASSWORD: quota-test-only
+          POSTGRES_DB: quota
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quota -d quota"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://quota:quota-test-only@localhost:5432/quota
+      POLL_CAPACITY_DATABASE_TESTS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/pnpm-install
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+      - name: Apply migrations
+        run: pnpm db:deploy
+      - name: Verify quotas and concurrent responses
+        run: pnpm --filter @rallly/web exec vitest run tests/database/poll-capacity.test.ts

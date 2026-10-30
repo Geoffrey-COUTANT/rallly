@@ -72,6 +72,7 @@ export const loadVotePage = cache(
         status: poll.status,
         closedReason: poll.closedReason,
         allowTentativeVotes: poll.allowTentativeVotes,
+        maxParticipantsPerOption: poll.maxParticipantsPerOption,
         timeZone: poll.timeZone,
         userId: poll.userId,
         spaceId: poll.spaceId,

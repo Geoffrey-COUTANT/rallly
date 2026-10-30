@@ -15,6 +15,7 @@ import type {
 } from "@/features/poll/vote/types";
 import { UserProvider } from "@/features/user/client";
 import type { UserDTO } from "@/features/user/schema";
+import { Trans } from "@/i18n/client";
 import { useHydrated } from "@/lib/datetime/use-hydrated";
 import { getCalendarDate, toISODate } from "@/lib/datetime/utils";
 import { getBrowserTimeZone } from "@/lib/utils/date-time-utils";
@@ -115,6 +116,18 @@ export function VotePanel({
               hidePast={hidePast}
               onHidePastChange={setHidePast}
             />
+            {poll.maxParticipantsPerOption != null ? (
+              <p
+                className="px-4 py-2 text-muted-foreground text-sm"
+                role="note"
+              >
+                <Trans
+                  i18nKey="pollOptionCapacityNotice"
+                  defaults="Each time slot accepts up to {count} yes votes. Tentative votes do not reserve a place."
+                  values={{ count: poll.maxParticipantsPerOption }}
+                />
+              </p>
+            ) : null}
             {visibleResults.length === 0 ? (
               <VoteEmptyState
                 isTimeSlot={isTimeSlot}

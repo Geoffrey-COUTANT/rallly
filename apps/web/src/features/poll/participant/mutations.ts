@@ -13,7 +13,12 @@ import { generateAccessToken } from "@/features/poll/utils";
 import type { SpaceTier } from "@/features/space/schema";
 import { scheduleWebhookDispatch } from "@/features/webhook/mutations";
 
-type WriteRefusal = "notFound" | "closed" | "full" | "tentativeVotesNotAllowed";
+type WriteRefusal =
+  | "notFound"
+  | "closed"
+  | "full"
+  | "tentativeVotesNotAllowed"
+  | "optionFull";
 
 class WriteRefusedError extends Error {
   constructor(public readonly reason: WriteRefusal) {
@@ -33,12 +38,18 @@ class WriteRefusedError extends Error {
 async function lockOpenPoll(
   tx: Prisma.TransactionClient,
   pollId: string,
-  votes: { type: VoteType }[],
+  votes: { optionId: string; type: VoteType }[],
+  participantId?: string,
 ) {
   const [poll] = await tx.$queryRaw<
-    { status: string; deleted: boolean; allow_tentative_votes: boolean }[]
+    {
+      status: string;
+      deleted: boolean;
+      allow_tentative_votes: boolean;
+      max_participants_per_option: number | null;
+    }[]
   >`
-    SELECT status, deleted, allow_tentative_votes
+    SELECT status, deleted, allow_tentative_votes, max_participants_per_option
     FROM polls WHERE id = ${pollId} FOR UPDATE
   `;
 
@@ -58,6 +69,38 @@ async function lockOpenPoll(
     votes.some((vote) => vote.type === "ifNeedBe")
   ) {
     throw new WriteRefusedError("tentativeVotesNotAllowed");
+  }
+
+  if (poll.max_participants_per_option !== null) {
+    // The poll lock serializes response writes and quota changes. Exclude
+    // the response being edited so keeping one's own place remains valid.
+    const requested = new Map<string, number>();
+    for (const vote of votes) {
+      if (vote.type === "yes") {
+        requested.set(vote.optionId, (requested.get(vote.optionId) ?? 0) + 1);
+      }
+    }
+    const counts = await tx.vote.groupBy({
+      by: ["optionId"],
+      where: {
+        pollId,
+        type: "yes",
+        optionId: { in: [...requested.keys()] },
+        ...(participantId && { participantId: { not: participantId } }),
+      },
+      _count: { _all: true },
+    });
+    const occupied = new Map(
+      counts.map((row) => [row.optionId, row._count._all]),
+    );
+    for (const [optionId, count] of requested) {
+      if (
+        (occupied.get(optionId) ?? 0) + count >
+        poll.max_participants_per_option
+      ) {
+        throw new WriteRefusedError("optionFull");
+      }
+    }
   }
 }
 
@@ -290,7 +333,7 @@ export async function updateParticipantVotes({
 }): Promise<EditParticipantResult> {
   try {
     await prisma.$transaction(async (tx) => {
-      await lockOpenPoll(tx, pollId, votes);
+      await lockOpenPoll(tx, pollId, votes, participantId);
       await assertParticipantInPoll(tx, participantId, pollId);
 
       await tx.vote.deleteMany({ where: { participantId } });

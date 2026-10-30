@@ -279,13 +279,18 @@ export function VoteForm({
           if (!result.ok) {
             // Stay in edit mode so the selection is not lost.
             toast.error(
-              result.reason === "closed"
-                ? t("pollClosedDescription", {
-                    defaultValue: "No more responses are being accepted.",
+              result.reason === "optionFull"
+                ? t("pollOptionCapacityFull", {
+                    defaultValue:
+                      "A selected time slot is full. Change your response and try again.",
                   })
-                : t("actionErrorInternalServerError", {
-                    defaultValue: "An internal server error occurred",
-                  }),
+                : result.reason === "closed"
+                  ? t("pollClosedDescription", {
+                      defaultValue: "No more responses are being accepted.",
+                    })
+                  : t("actionErrorInternalServerError", {
+                      defaultValue: "An internal server error occurred",
+                    }),
             );
             return;
           }

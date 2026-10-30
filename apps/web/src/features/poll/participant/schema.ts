@@ -16,6 +16,14 @@ const voteInput = z.object({
   type: z.enum(["yes", "no", "ifNeedBe"]),
 });
 
+const votesInput = voteInput
+  .array()
+  .refine(
+    (votes) =>
+      new Set(votes.map((vote) => vote.optionId)).size === votes.length,
+    "Each option can only have one vote per response",
+  );
+
 export type VoteInput = z.infer<typeof voteInput>;
 
 export const addParticipantSchema = z.object({
@@ -32,12 +40,12 @@ export const addParticipantSchema = z.object({
   timeZone: z.string().optional(),
   // The token from an emailed invite link; the response takes it over.
   token: z.string().optional(),
-  votes: voteInput.array(),
+  votes: votesInput,
 });
 
 export const updateParticipantVotesSchema = z.object({
   participantId: z.string(),
-  votes: voteInput.array(),
+  votes: votesInput,
   token: z.string().optional(),
 });
 

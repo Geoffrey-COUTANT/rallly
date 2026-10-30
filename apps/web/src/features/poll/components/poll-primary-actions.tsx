@@ -7,6 +7,7 @@ import { CalendarCheck2Icon, Share2Icon } from "lucide-react";
 import * as React from "react";
 import { usePoll } from "@/features/poll/client";
 import { FinalizePollDialog } from "@/features/poll/components/finalize-poll-dialog";
+import { PollOptionCapacity } from "@/features/poll/components/poll-option-capacity";
 import {
   SharePollDialog,
   useSharePollDialog,
@@ -106,6 +107,7 @@ export function PollPrimaryActions() {
 
   return (
     <>
+      <PollOptionCapacity />
       <div className="contents sm:hidden">
         <MobileActionBar {...actionBarProps} />
       </div>
